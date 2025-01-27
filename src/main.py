@@ -9,8 +9,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModel.from_pretrained(model_name)
 
 if __name__ == '__main__':
-    data = Dataset(tokenizer_func=tokenizer, embedding_model=model, length=512, batch_size=8)
+    data = Dataset(tokenizer_func=tokenizer, embedding_model=model, length=512, batch_size=2)
     train_dataloader, val_dataloader, test_dataloader = data.create_embedding_dataloader()
-    glow = Glow(24, 64, 64, 384)
-    print('Test')
+    glow = Glow(1, 4, 4)
     train_flow(glow, train_dataloader, val_dataloader, test_dataloader, epochs=10, early_stopping=10, learning_rate=1e-2, weight_decay=1e-3, device="cuda", log_path="log.txt", save_path="model.pth")

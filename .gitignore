@@ -2,3 +2,6 @@ env
 src/data/__pycache__
 .DS_Store
 /src/__pycache__
+requirements_bernard.txt
+/src/model/__pycache__
+/src/utils/__pycache__

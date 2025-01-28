@@ -1,5 +1,4 @@
 import torch
-from torch.nn.functional import mse_loss
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
@@ -63,6 +62,10 @@ def train_flow(
             progress_bar_val = tqdm(range(len(val_loader)))
             for batch in val_loader:
                 log_p, logdet, flow_z = model(batch)
+                noise_list = [torch.randn_like(z) for z in flow_z]
+                noise_list.reshape()
+                sample = model.reverse(noise_list, reconstruct=True)
+
                 loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
                 val_loss += loss.item()
                 progress_bar_val.update(1)

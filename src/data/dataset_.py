@@ -11,27 +11,32 @@ dataset_name = "mintujupally/ROCStories"
 class Dataset():
     def __init__(
         self,
-        embedding_model,
-        tokenizer_func,
+        tokenizer_func=None,
+        embedding_model=None,
+        embedding_tokenizer_func=None,
         length=512,
         batch_size=8,
     ):
         self.data = load_dataset(dataset_name, split={'train': 'train[:1%]', 'test': 'test[:1%]'}) 
         self.tokenizer = tokenizer_func
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.embedding_model = embedding_model.to(self.device)
+        self.embedding_tokenizer = embedding_tokenizer_func
+
         self.tokenized_data = None
         self.length = length
         self.batch_size = batch_size
-        self.preprocess()
 
     def tokenize(self, string):
-        inputs = self.tokenizer(string['text'], padding=True, truncation=True, return_tensors='pt')
-        # labels = self.tokenizer(string['text'], return_tensors="pt", max_length=self.length, truncation=True, padding='max_length')
-        
+        inputs = self.tokenizer(string['text'], max_length=self.length, padding=True, truncation=True, return_tensors='pt')
         return inputs
 
-    def preprocess(self, filter=True):
+    def tokenize_embedding(self, string):
+        inputs = self.embedding_tokenizer(string['text'], padding=True, truncation=True, return_tensors='pt')
+        return inputs
+
+    def preprocess(self, filter=True, create_embedding=False):
         train_data = self.data['train']
         test_data = self.data['test']
 
@@ -40,25 +45,29 @@ class Dataset():
         val_size = len(test_data)
         train_val = train_data.train_test_split(test_size=ratio, shuffle=True)
 
-        print(f"Train size: {len(train_val['train'])}")
-        print(f"Validation size: {len(train_val['test'])}")
-        print(f"Test size: {len(test_data)}")
-
         data = DatasetDict({
             'train': train_val['train'],
             'validation': train_val['test'],
             'test': test_data,
         })
-        self.tokenized_data = data.map(self.tokenize, remove_columns=['text'])
+
+        if create_embedding:
+            self.tokenized_data = data.map(self.tokenize_embedding, remove_columns=['text'])
+        else:
+            self.tokenized_data = data.map(self.tokenize, remove_columns=['text'])
 
     def create_dataloader(self):
+        self.preprocess()
+
         train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size)
-        val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True, batch_size=self.batch_size)
-        test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, batch_size=self.batch_size)
+        val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True)
+        test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True)
         
         return train_dataloader, val_dataloader, test_dataloader
 
     def create_embedding_dataloader(self):
+        self.preprocess(create_embedding=True)
+
         train_embedding = self.to_model(self.tokenized_data["train"].with_format("torch"))
         val_embedding = self.to_model(self.tokenized_data["validation"].with_format("torch"))
         test_embedding = self.to_model(self.tokenized_data["test"].with_format("torch"))

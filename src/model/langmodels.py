@@ -1,9 +1,9 @@
-from transformer import BartForConditionalGeneration
-
-model_name = "facebook/bart-base"
+import torch
+import torch.nn as nn
+from transformers import BartForConditionalGeneration
 
 class BARTAutoencoderLatent(BartForConditionalGeneration):
-    def __init__(self, num_encoder_latents, num_decoder_latents, dim_ae, num_layers=2, l2_normalize_latents=False):
+    def __init__(self, num_encoder_latents=32, num_decoder_latents=32, dim_ae=64, num_layers=3, l2_normalize_latents=False):
         self.num_encoder_latents = num_encoder_latents
         self.num_decoder_latents = num_decoder_latents
         self.dim_ae = dim_ae
@@ -24,16 +24,15 @@ class BARTAutoencoderLatent(BartForConditionalGeneration):
         output = self.get_output(latent)
         return output   
 
-class PerceiverAutoencoder(nn):
+class PerceiverAutoencoder(nn.Module):
     def __init__(
         self, 
-        model_name,
         *,
         dim_lm,
         dim_ae,
         depth,
         dim_head=64,
-        num_encoder_latents=8,
+        num_encoder_latents=32,
         num_decoder_latents=32,
         max_seq_len=64,
         ff_mult=4,
@@ -43,7 +42,7 @@ class PerceiverAutoencoder(nn):
     ):
         super().__init__()
         self.perceiver_encoder = PerceiverResampler(dim=dim_lm, dim_latent=dim_ae, depth=depth, dim_head=dim_head,
-                                                    num_latents=num_encoder_latents, max_seq_len=max_seq_len, ff_mult=ff_mult, l2_normalize_latents=l2_normalize_latents)
+                                                    num_latents=num_encoder_latents, max_seq_len=max_seq_len, ff_mult=ff_mult)
         self.perceiver_decoder = PerceiverResampler(dim=dim_ae, dim_latent=dim_lm, depth=depth, dim_head=dim_head,
                                                         num_latents=num_decoder_latents, max_seq_len=num_encoder_latents, ff_mult=ff_mult)
 
@@ -57,7 +56,7 @@ class PerceiverAutoencoder(nn):
         latent = self.perceiver_encoder(output, attention_mask)
         return self.perceiver_decoder(latent)
 
-class PerceiverResampler():
+class PerceiverResampler(nn.Module):
     def __init__(
         self,
         *,
@@ -77,6 +76,8 @@ class PerceiverResampler():
             dim_out = dim_latent
             dim_latent = dim
 
+        print(num_latents, dim_latent)
+
         self.latents = nn.Parameter(torch.randn(num_latents, dim_latent))
         nn.init.normal_(self.latents, std=0.02)
 
@@ -90,7 +91,6 @@ class PerceiverResampler():
 
         self.final_norm = nn.LayerNorm(dim_latent)
         self.output_proj = nn.Linear(dim_latent, dim_out) if legacy else nn.Identity()
-
 
     def forward(self, x, mask=None):
         pos_emb = self.pos_emb(x)
@@ -173,6 +173,16 @@ class PerceiverAttention(nn.Module):
         out = rearrange(out, 'b h n d -> b n (h d)', h=h)
         return self.to_out(out) 
 
+def FeedForward(dim, mult=4, dropout=0.):
+    hidden_dim = int(dim * mult)
+    return nn.Sequential(
+        nn.LayerNorm(dim),
+        nn.Linear(dim, hidden_dim),
+        nn.GELU(),
+        nn.Dropout(dropout),
+        nn.Linear(hidden_dim, dim)
+    )
+
 class LayerNorm(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -193,7 +203,7 @@ class RMSNorm(nn.Module):
         norm = torch.norm(x, dim=-1, keepdim=True) * self.scale
         return x / norm.clamp(min=self.eps) * self.gamma
 
-class AbsolutePositionalEmbedding(nn.module):
+class AbsolutePositionalEmbedding(nn.Module):
     def __init__(self, dim, max_seq_len):
         super().__init__()
         self.scale = dim ** -0.5 

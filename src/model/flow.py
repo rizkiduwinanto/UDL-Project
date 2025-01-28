@@ -35,9 +35,10 @@ class Glow(nn.Module):
             if log_p is not None:
                 log_p_sum = log_p_sum + log_p
 
+
         return log_p_sum, logdet, z_outs
 
-    def reverse(self, z, eps=None, reconstruct=False): 
+    def reverse(self, z, reconstruct=False): 
         for i, block in enumerate(self.blocks[::-1]):
             if i == 0:
                 x = block.reverse(z[-1], z[-1], reconstruct=reconstruct)
@@ -100,6 +101,9 @@ class Block(nn.Module):
 
         if reconstruct:
             if self.split:
+                print(f"Shape of x: {x.shape}")
+                print(f"Shape of eps: {eps.shape}")
+
                 input = torch.cat([x, eps], 2)
             else:
                 input = eps

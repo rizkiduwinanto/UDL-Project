@@ -226,8 +226,11 @@ class Invertible1dConvLU(nn.Module):
         _, _, seq_length = x.shape
 
         out = F.linear(x.transpose(1, 2), self.weight).transpose(1, 2)
-        logdet = seq_length * torch.slogdet(self.weight.double())[1].float()
-
+        if torch.device == "cuda":
+            logdet = seq_length * torch.slogdet(self.weight.double())[1].float()
+        else:
+            logdet = seq_length * torch.slogdet(self.weight.float())[1].float()
+        
         return out, logdet
 
     def reverse(self, x):

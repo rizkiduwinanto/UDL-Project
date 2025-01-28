@@ -19,6 +19,9 @@ def train_flow(
     log_path=None,
     save_path=None,
 ):
+    if torch.backends.mps.is_available():
+        device = "mps"
+
     model.to(device)
     optimizer = optimizer(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     best_val_loss = float("inf")

@@ -18,16 +18,14 @@ class Glow(nn.Module):
 
         for i in range(n_block - 1):
             self.blocks.append(Block(n_channel, n_flow, affine=affine))
-            n_channel *= 2
+            n_channel *= 1
         self.blocks.append(Block(n_channel, n_flow, split=False, affine=affine))
 
     def forward(self, x):
         logdet = 0
-        log_sum = 0
+        log_p_sum = 0
         out = x
         z_outs = []
-
-        print("Glow shape:", out.shape)
 
         for block in self.blocks:
             out, det, log_p, z_new = block(out)
@@ -55,7 +53,7 @@ class Block(nn.Module):
         n_flow,
         split=True,
         affine=True, 
-        squeeze_size=4
+        squeeze_size=2
     ):
         super(Block, self).__init__()
 
@@ -68,34 +66,29 @@ class Block(nn.Module):
 
         self.split = split
         if split:
-            self.prior = ZeroLinear(in_channel, in_channel * 2)
+            self.prior = ZeroLinear(squeeze_dim // 2, squeeze_dim)
         else:
-            self.prior = ZeroLinear(in_channel * self.squeeze_size, in_channel * self.squeeze_size * 2)
+            self.prior = ZeroLinear(squeeze_dim, squeeze_dim * 2)
 
     def forward(self, x):
         logdet = 0
-        print("Block shape:", x.shape)
         b_size, n_channel, seq_len = x.shape
 
         x_squeezed = x.view(b_size, n_channel, seq_len // self.squeeze_size, self.squeeze_size)
         x_squeezed = x_squeezed.permute(0, 1, 3, 2).contiguous()
-        print("Block squeezed shape:", x_squeezed.shape)
         out = x_squeezed.view(b_size, n_channel * self.squeeze_size, seq_len // self.squeeze_size)
-        
-        print("Block out shape:", out.shape)
-        
         for flow in self.flows:
             out, det = flow(out)
             logdet = logdet + det
 
         if self.split:
             out, z_split = out.chunk(2, 1)
-            mean, log_std = self.prior(out).chunk(2, 2)
+            mean, log_std = self.prior(out).chunk(2, 1)
             log_p = gaussian_log_p(z_split, mean, log_std)
             log_p = log_p.view(b_size, -1).sum(1)
         else:
             zero = torch.zeros_like(out)
-            mean, log_std = self.prior(zero).chunk(2, 2)
+            mean, log_std = self.prior(zero).chunk(2, 1)
             log_p = gaussian_log_p(out, mean, log_std)
             log_p = log_p.view(b_size, -1).sum(1)
             z_split = out
@@ -144,13 +137,8 @@ class FlowStep(nn.Module):
         self.affine_coupling = AffineCoupling(in_channel, affine=affine)
 
     def forward(self, x):
-        print("FlowStep shape:", x.shape)
         x1, logdet = self.act_norm(x)
-        
-        print("FlowStep act norm shape:", x1.shape)
         x2, det1 = self.inv_conv(x1)
-        
-        print("FlowStep conv shape:", x2.shape)
         x3, det2 = self.affine_coupling(x2)
 
         logdet = logdet + det1
@@ -180,20 +168,11 @@ class AffineCoupling(nn.Module):
         )
 
     def forward(self, x):
-        print("AffineCoupling input shape:", x.shape)
-        
-        # Split input along channel dimension
         in_a, in_b = x.chunk(2, 1)
-        print("AffineCoupling chunk shapes:", in_a.shape, in_b.shape)
-        
         temp = self.net(in_a)
-        print("AffineCoupling temp shape:", temp.shape)
         
         if self.affine:
-            log_s, t = temp.chunk(2, 2)
-            print("AffineCoupling log_s shape:", log_s.shape)
-            print("AffineCoupling t shape:", t.shape)
-            
+            log_s, t = temp.chunk(2, 1)
             s = torch.sigmoid(log_s + 2)
             out_b = (in_b + t) * s
             logdet = torch.sum(torch.log(s).view(x.size(0), -1), 1)
@@ -201,16 +180,13 @@ class AffineCoupling(nn.Module):
             out_b = in_b + temp
             logdet = None
         
-        # Combine results
         output = torch.cat([in_a, out_b], dim=1)
-        print("AffineCoupling output shape:", output.shape)
-        
         return output, logdet
 
     def reverse(self, x):
         out_a, out_b = x.chunk(2, 1)
         temp = self.net(out_a)
-        log_s, t = x.chunk(2, 2)
+        log_s, t = x.chunk(2, 1)
         s = torch.sigmoid(log_s + 2)
         in_b = out_b / s - t
         
@@ -224,11 +200,29 @@ class Invertible1dConv(nn.Module):
         w = torch.randn(in_channel, in_channel)
         q, _ = torch.linalg.qr(w)
         weight = q.unsqueeze(2)
-        print("Invertible1dConv weight shape:", weight.shape)
         self.weight = nn.Parameter(q)
 
     def forward(self, x):
-        print("Invertible1dConv shape:", x.shape)
+        _, _, seq_length = x.shape
+
+        out = F.linear(x.transpose(1, 2), self.weight).transpose(1, 2)
+        logdet = seq_length * torch.slogdet(self.weight.double())[1].float()
+
+        return out, logdet
+
+    def reverse(self, x):
+        return F.linear(x.transpose(1, 2), self.weight.inverse()).transpose(1, 2)
+
+class Invertible1dConvLU(nn.Module):
+    def __init__(self, in_channel):
+        super(Invertible1dConvLU, self).__init__()
+
+        w = torch.randn(in_channel, in_channel)
+        q, _ = torch.linalg.qr(w)
+        weight = q.unsqueeze(2)
+        self.weight = nn.Parameter(q)
+
+    def forward(self, x):
         _, _, seq_length = x.shape
 
         out = F.linear(x.transpose(1, 2), self.weight).transpose(1, 2)
@@ -251,14 +245,22 @@ class ActNorm(nn.Module):
 
     def initialize(self, x):
         with torch.no_grad(): 
-            mean = x.mean(dim=[0, 2], keepdim=True)
-            std = x.std(dim=[0, 2], keepdim=True)
-
+            flatten = x.permute(1, 0, 2).contiguous().view(x.shape[1], -1)
+            mean = (
+                flatten.mean(1)
+                .unsqueeze(0)
+                .unsqueeze(2)
+            )
+            std = (
+                flatten.std(1)
+                .unsqueeze(0)
+                .unsqueeze(2)
+            )
             self.loc.data.copy_(-mean)
             self.scale.data.copy_(1 / (std + 1e-12))
     
     def forward(self, x):
-        _, _, seq_length = x.shape
+        batch_size, num_channels, seq_length = x.shape
         if self.initialized.item() == 0:
             self.initialize(x)
             self.initialized.fill_(1)
@@ -266,30 +268,34 @@ class ActNorm(nn.Module):
         log_abs = torch.log(torch.abs(self.scale)).sum(dim=1).unsqueeze(1)
         logdet = seq_length * log_abs
 
+        loc = self.loc.expand(batch_size, num_channels, seq_length)
+        scale = self.scale.expand(batch_size, num_channels, seq_length)
+
         if self.logdet:
             return self.scale * (x + self.loc), logdet
         else:
             return self.scale * (x + self.loc)
 
     def reverse(self, x):
+        batch_size, num_channels, seq_length = x.shape
+
+        loc = self.loc.expand(batch_size, num_channels, seq_length)
+        scale = self.scale.expand(batch_size, num_channels, seq_length)
+
         return x / self.scale - self.loc
 
 class ZeroLinear(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(ZeroLinear, self).__init__()
 
-        self.linear = nn.Linear(in_channel, out_channel)
-        self.linear.weight.data.zero_()
-        self.linear.bias.data.zero_()
-        self.scale = nn.Parameter(torch.zeros(1, out_channel))
+        self.conv = nn.Conv1d(in_channel, out_channel, 1)  # 1x1 convolution
+        self.conv.weight.data.zero_()
+        self.conv.bias.data.zero_()
+        self.scale = nn.Parameter(torch.zeros(1, out_channel, 1))
 
     def forward(self, x):
-        x_reshape = x.view(x.size(0), -1)
-        print("ZeroLinear shape:", x_reshape.shape)
-        print("ZeroLinear weight shape:", self.linear.weight.shape)
-        print("ZeroLinear scale shape:", self.scale.shape)
-        out = self.linear(x) * torch.exp(self.scale * 3)
-        return out.view(x.size(0), -1, x.size(2))
+        out = self.conv(x) * torch.exp(self.scale * 3)
+        return out
 
 
 

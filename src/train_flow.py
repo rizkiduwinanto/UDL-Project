@@ -3,17 +3,7 @@ from torch.nn.functional import mse_loss
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
-
-def calc_loss(log_p, logdet, n_bins, input_hidden=64):
-    n_pixel = input_hidden
-    loss = -log(n_bins) * n_pixel
-    loss = loss + logdet + log_p
-
-    return (
-        (-loss / (log(2) * n_pixel)).mean(),
-        (log_p / (log(2) * n_pixel)).mean(),
-        (logdet / (log(2) * n_pixel)).mean(),
-    )
+from utils.helper import calc_loss
 
 def train_flow(
     model,

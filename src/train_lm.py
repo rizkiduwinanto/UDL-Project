@@ -40,9 +40,11 @@ def train_lm(
         train_loss = 0
         for batch in train_loader:
             optimizer.zero_grad()
-            batch = batch.to(device)
+            data = {k: v.to(device) for k, v in batch.items()}
             outputs = self.model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
             encoder_outputs = self.model.encoder_output_to_decoder_input(outputs, data['attention_mask'])
+            print(encoder_outputs)
+            print(outputs)
             loss = outputs.loss 
             loss.backward()
             optimizer.step()

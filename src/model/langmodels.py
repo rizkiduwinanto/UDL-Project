@@ -3,7 +3,8 @@ import torch.nn as nn
 from transformers import BartForConditionalGeneration
 
 class BARTAutoencoderLatent(BartForConditionalGeneration):
-    def __init__(self, num_encoder_latents=32, num_decoder_latents=32, dim_ae=64, num_layers=3, l2_normalize_latents=False):
+    def __init__(self, config, num_encoder_latents=32, num_decoder_latents=32, dim_ae=64, num_layers=3, l2_normalize_latents=False):
+        super(BARTAutoencoderLatent, self).__init__(config)
         self.num_encoder_latents = num_encoder_latents
         self.num_decoder_latents = num_decoder_latents
         self.dim_ae = dim_ae
@@ -40,7 +41,7 @@ class PerceiverAutoencoder(nn.Module):
         transformer_decoder=False,
         l2_normalize_latents=False,
     ):
-        super().__init__()
+        super(PerceiverAutoencoder, self).__init__()
         self.perceiver_encoder = PerceiverResampler(dim=dim_lm, dim_latent=dim_ae, depth=depth, dim_head=dim_head,
                                                     num_latents=num_encoder_latents, max_seq_len=max_seq_len, ff_mult=ff_mult)
         self.perceiver_decoder = PerceiverResampler(dim=dim_ae, dim_latent=dim_lm, depth=depth, dim_head=dim_head,
@@ -69,14 +70,12 @@ class PerceiverResampler(nn.Module):
         ff_mult=4,
         legacy=False,
     ):
-        super().__init__()
+        super(PerceiverResampler, self).__init__()
         self.pos_emb = AbsolutePositionalEmbedding(dim, max_seq_len)
 
         if legacy:
             dim_out = dim_latent
             dim_latent = dim
-
-        print(num_latents, dim_latent)
 
         self.latents = nn.Parameter(torch.randn(num_latents, dim_latent))
         nn.init.normal_(self.latents, std=0.02)
@@ -114,7 +113,7 @@ class PerceiverAttention(nn.Module):
         dim_head=64,
         qk_norm=True,
     ):
-        super().__init__()
+        super(PerceiverAttention, self).__init__()
         self.scale = dim_head ** -0.5
 
         inner_dim = max(dim_latent, dim)
@@ -185,7 +184,7 @@ def FeedForward(dim, mult=4, dropout=0.):
 
 class LayerNorm(nn.Module):
     def __init__(self, dim):
-        super().__init__()
+        super(LayerNorm, self).__init__()
         self.gamma = nn.Parameter(torch.ones(dim))
         self.register_buffer("beta", torch.zeros(dim))
 
@@ -194,7 +193,7 @@ class LayerNorm(nn.Module):
 
 class RMSNorm(nn.Module):
     def __init__(self, dim, eps=1e-8):
-        super().__init__()
+        super(RMSNorm, self).__init__()
         self.scale = dim ** -0.5
         self.eps = eps
         self.gamma = nn.Parameter(torch.ones(dim))
@@ -205,7 +204,7 @@ class RMSNorm(nn.Module):
 
 class AbsolutePositionalEmbedding(nn.Module):
     def __init__(self, dim, max_seq_len):
-        super().__init__()
+        super(AbsolutePositionalEmbedding, self).__init__()
         self.scale = dim ** -0.5 
         self.max_seq_len = max_seq_len
         self.embedding = nn.Embedding(max_seq_len, dim)

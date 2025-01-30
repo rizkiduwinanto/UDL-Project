@@ -1,9 +1,11 @@
 import torch
-import torch.nn as nn
+from torch import nn, einsum
+from einops import rearrange, repeat
+import torch.nn.functional as F
 from transformers import BartForConditionalGeneration
 
 class BARTAutoencoderLatent(BartForConditionalGeneration):
-    def __init__(self, config, num_encoder_latents=32, num_decoder_latents=32, dim_ae=64, num_layers=3, l2_normalize_latents=False):
+    def __init__(self, config, num_encoder_latents=32, num_decoder_latents=32, dim_ae=768, num_layers=3, l2_normalize_latents=False):
         super(BARTAutoencoderLatent, self).__init__(config)
         self.num_encoder_latents = num_encoder_latents
         self.num_decoder_latents = num_decoder_latents
@@ -12,7 +14,7 @@ class BARTAutoencoderLatent(BartForConditionalGeneration):
 
         self.ae = PerceiverAutoencoder(dim_lm=dim_ae, dim_ae=dim_ae, depth=num_layers, num_encoder_latents=num_encoder_latents, num_decoder_latents=num_decoder_latents, l2_normalize_latents=l2_normalize_latents)
 
-    def get_latents(self, x, attention_mask):
+    def get_latents(self, encoder_outputs, attention_mask):
         hidden_state = encoder_outputs[0]
         latent = self.ae.encode(hidden_state, attention_mask)
         return latent
@@ -35,7 +37,7 @@ class PerceiverAutoencoder(nn.Module):
         dim_head=64,
         num_encoder_latents=32,
         num_decoder_latents=32,
-        max_seq_len=64,
+        max_seq_len=512,
         ff_mult=4,
         encoder_only=False,
         transformer_decoder=False,
@@ -146,7 +148,7 @@ class PerceiverAttention(nn.Module):
 
         q = self.to_q(latents)
 
-        if exists(self.latent_to_kv):
+        if self.latent_to_kv is not None:
             kv_input = torch.cat([self.to_kv(x), self.latent_to_kv(latents)], dim=1)
         else:
             kv_input = torch.cat([self.to_kv(x), self.to_kv(latents)], dim=1)
@@ -159,10 +161,11 @@ class PerceiverAttention(nn.Module):
         sim = einsum('... i d, ... j d  -> ... i j',
                      self.query_norm(q) * self.scale, self.key_norm(k))
 
-        if exists(mask):
+        if mask is not None:
             max_neg_value = -torch.finfo(sim.dtype).max
             mask = F.pad(mask, (0, latents.shape[-2]), value=True)
             mask = rearrange(mask, 'b j -> b 1 1 j')
+            mask = mask.bool()
             sim = sim.masked_fill(~mask, max_neg_value)
 
         attn = sim.softmax(dim=-1, dtype=torch.float32)
@@ -212,7 +215,7 @@ class AbsolutePositionalEmbedding(nn.Module):
     def forward(self, x, pos=None):
         seq_len = x.shape[1]
 
-        if not exists(pos):
+        if pos is None:
             pos = torch.arange(seq_len, device=x.device)
 
         return self.embedding(pos) * self.scale

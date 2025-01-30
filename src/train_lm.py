@@ -41,11 +41,8 @@ def train_lm(
         for batch in train_loader:
             optimizer.zero_grad()
             data = {k: v.to(device) for k, v in batch.items()}
-            outputs = self.model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
-            encoder_outputs = self.model.encoder_output_to_decoder_input(outputs, data['attention_mask'])
-            print(encoder_outputs)
-            print(outputs)
-            loss = outputs.loss 
+            outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+            loss = model(labels=data['labels'], encoder_outputs=outputs).loss
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -64,13 +61,15 @@ def train_lm(
             
             progress_bar_val = tqdm(range(len(val_loader)))
             for batch in val_loader:
-                log_p, logdet, flow_z = model(batch)
-                noise_list = [torch.randn_like(z) for z in flow_z]
-                noise_list.reshape()
-                sample = model.reverse(noise_list, reconstruct=True)
-
-                loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
+                data = {k: v.to(device) for k, v in batch.items()}
+                outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+                loss = model(labels=data['labels'], encoder_outputs=outputs).loss
                 val_loss += loss.item()
+
+                #CHECK USE BLEU/ROUGE METRICS
+                generated_from_ae = model.generate(encoder_outputs=outputs)
+                generated_label = model.generate(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+
                 progress_bar_val.update(1)
 
             progress_bar_val.close()
@@ -109,9 +108,15 @@ def train_lm(
             progress_bar_test = tqdm(range(len(test_loader)))
 
             for batch in test_loader:
-                log_p, logdet, flow_z = model(batch)
-                loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
+                data = {k: v.to(device) for k, v in batch.items()}
+                outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+                loss = model(labels=data['labels'], encoder_outputs=outputs).loss
                 test_loss += loss.item()
+                
+                #CHECK USE BLEU/ROUGE METRICS
+                generated_from_ae = model.generate(encoder_outputs=outputs)
+                generated_label = model.generate(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+
                 progress_bar_test.update(1)
             
             progress_bar_test.close()

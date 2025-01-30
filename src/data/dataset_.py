@@ -2,6 +2,7 @@ import pandas as pd
 from datasets import load_dataset, DatasetDict
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
+from transformers import default_data_collator
 import math
 import torch
 import torch.nn.functional as F
@@ -15,7 +16,7 @@ class Dataset():
         embedding_model=None,
         embedding_tokenizer_func=None,
         length=512,
-        batch_size=8,
+        batch_size=2,
     ):
         self.data = load_dataset(dataset_name, split={'train': 'train[:1%]', 'test': 'test[:1%]'}) 
         self.tokenizer = tokenizer_func
@@ -29,8 +30,12 @@ class Dataset():
         self.batch_size = batch_size
 
     def tokenize(self, string):
-        inputs = self.tokenizer(string['text'], max_length=self.length, padding=True, truncation=True, return_tensors='pt')
-        return inputs
+        inputs = self.tokenizer(string['text'], max_length=self.length, padding="max_length", truncation=True, return_tensors='pt')
+        return {
+            'input_ids': inputs['input_ids'].squeeze(),
+            'attention_mask': inputs['attention_mask'].squeeze(),
+            'labels': inputs['input_ids'].squeeze(),
+        }
 
     def tokenize_embedding(self, string):
         inputs = self.embedding_tokenizer(string['text'], padding=True, truncation=True, return_tensors='pt')
@@ -59,9 +64,10 @@ class Dataset():
     def create_dataloader(self):
         self.preprocess()
 
-        train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size)
-        val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True)
-        test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True)
+        data_collator = default_data_collator
+        train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator)
+        val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True, collate_fn=data_collator)
+        test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, collate_fn=data_collator)
         
         return train_dataloader, val_dataloader, test_dataloader
 

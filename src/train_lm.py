@@ -65,12 +65,13 @@ def train_lm(
             progress_bar_val = tqdm(range(len(val_loader)))
             for batch in val_loader:
                 data = {k: v.to(device) for k, v in batch.items()}
-                outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
-                loss = model(labels=data['labels'], encoder_outputs=outputs).loss
+                encoder_outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+                latent_decoder_outputs = model.encoder_output_to_decoder_input(encoder_outputs, data['attention_mask'])
+                loss = model(labels=data['labels'], encoder_outputs=latent_decoder_outputs).loss
                 val_loss += loss.item()
 
                 #CHECK USE BLEU/ROUGE METRICS
-                generated_from_ae = model.generate(encoder_outputs=outputs)
+                generated_from_ae = model.generate(encoder_outputs=latent_decoder_outputs)
                 generated_label = model.generate(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
 
                 progress_bar_val.update(1)
@@ -112,12 +113,13 @@ def train_lm(
 
             for batch in test_loader:
                 data = {k: v.to(device) for k, v in batch.items()}
-                outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
-                loss = model(labels=data['labels'], encoder_outputs=outputs).loss
+                encoder_outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+                latent_decoder_outputs = model.encoder_output_to_decoder_input(encoder_outputs, data['attention_mask'])
+                loss = model(labels=data['labels'], encoder_outputs=latent_decoder_outputs).loss
                 test_loss += loss.item()
                 
                 #CHECK USE BLEU/ROUGE METRICS
-                generated_from_ae = model.generate(encoder_outputs=outputs)
+                generated_from_ae = model.generate(encoder_outputs=latent_decoder_outputs)
                 generated_label = model.generate(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
 
                 progress_bar_test.update(1)

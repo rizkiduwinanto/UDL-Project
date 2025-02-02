@@ -18,7 +18,7 @@ class Dataset():
         length=512,
         batch_size=2,
     ):
-        self.data = load_dataset(dataset_name, split={'train': 'train[:1%]', 'test': 'test[:1%]'}) 
+        self.data = load_dataset(dataset_name) 
         self.tokenizer = tokenizer_func
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

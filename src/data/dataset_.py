@@ -2,12 +2,39 @@ import pandas as pd
 from datasets import load_dataset, DatasetDict
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
-from transformers import default_data_collator
+from transformers import BatchEncoding, PreTrainedTokenizerBase
+from transformers.models.bart.modeling_bart import shift_tokens_right
 import math
 import torch
 import torch.nn.functional as F
 
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+
+
 dataset_name = "mintujupally/ROCStories"
+
+@dataclass
+class DataCollatorForBart():
+    tokenizer: PreTrainedTokenizerBase
+    decoder_start_token_id: int
+
+    def __call__(self, examples: List[Dict[str, List[int]]]) -> BatchEncoding:
+        batch = BatchEncoding(
+            {k: torch.LongTensor([examples[i][k] for i in range(len(examples))]) for k, v in examples[0].items()}
+        )
+
+        batch["labels"] = batch["input_ids"].clone()
+        batch["decoder_input_ids"] = shift_tokens_right(
+            batch["labels"], self.tokenizer.pad_token_id, self.decoder_start_token_id
+        )
+
+        batch['labels'][batch['labels'] == self.tokenizer.pad_token_id] = -100
+
+        batch["attention_mask"] = (batch["input_ids"] != self.tokenizer.pad_token_id).long()
+        batch["decoder_attention_mask"] = (batch["decoder_input_ids"] != self.tokenizer.pad_token_id).long()
+
+        return batch
 
 class Dataset():
     def __init__(
@@ -18,7 +45,7 @@ class Dataset():
         length=512,
         batch_size=2,
     ):
-        self.data = load_dataset(dataset_name) 
+        self.data = load_dataset(dataset_name, split={'train': 'train[:1%]', 'test': 'test[:1%]'}) 
         self.tokenizer = tokenizer_func
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -61,10 +88,10 @@ class Dataset():
         else:
             self.tokenized_data = data.map(self.tokenize, remove_columns=['text'])
 
-    def create_dataloader(self):
+    def create_dataloader(self, model):
         self.preprocess()
 
-        data_collator = default_data_collator
+        data_collator = DataCollatorForBart(self.tokenizer, model.config.decoder_start_token_id)
         train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator)
         val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True, collate_fn=data_collator)
         test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, collate_fn=data_collator)

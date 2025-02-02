@@ -4,6 +4,10 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 from utils.helper import calc_loss
 
+SEED = 8
+
+torch.manual_seed(SEED)
+
 def train_lm(
     model,
     train_loader,
@@ -14,13 +18,11 @@ def train_lm(
     optimizer=Adam,
     learning_rate=1e-2,
     weight_decay=1e-3,
-    device="cuda",
+    device = "mps" if torch.backends.mps.is_available() else "cuda",
     log_path=None,
     save_path=None,
 ):
-    if torch.backends.mps.is_available():
-        device = "mps"
-
+    
     model.to(device)
     optimizer = optimizer(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     best_val_loss = float("inf")
@@ -41,8 +43,9 @@ def train_lm(
         for batch in train_loader:
             optimizer.zero_grad()
             data = {k: v.to(device) for k, v in batch.items()}
-            outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
-            loss = model(labels=data['labels'], encoder_outputs=outputs).loss
+            encoder_outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+            latent_decoder_outputs = model.encoder_output_to_decoder_input(encoder_outputs, data['attention_mask'])
+            loss = model(labels=data['labels'], encoder_outputs=latent_decoder_outputs).loss
             loss.backward()
             optimizer.step()
             train_loss += loss.item()

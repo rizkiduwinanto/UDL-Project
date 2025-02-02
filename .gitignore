@@ -6,3 +6,11 @@ requirements_bernard.txt
 /src/model/__pycache__
 /src/utils/__pycache__
 runs
+.jupyter/desktop-workspaces/default-37a8.jupyterlab-workspace
+/logs
+encoding_v0.ipynb
+encoding_v1.ipynb
+encoding_v2.ipynb
+encoding_v3.ipynb
+encoding_v4.ipynb
+src/inference.ipynb

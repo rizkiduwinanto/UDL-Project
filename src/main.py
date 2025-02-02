@@ -14,7 +14,7 @@ lm_embedding_model_name = "facebook/bart-base"
 
 config = BartForConditionalGeneration.from_pretrained(lm_embedding_model_name).config
 lm_embedding_tokenizer = AutoTokenizer.from_pretrained(lm_embedding_model_name)
-lm_embedding_model = BARTAutoencoderLatent(config, num_encoder_latents=32, num_decoder_latents=32, dim_ae=32, num_layers=3).from_pretrained(lm_embedding_model_name)
+lm_embedding_model = BARTAutoencoderLatent(config, num_encoder_latents=16, num_decoder_latents=16, dim_ae=32, dim_lm=768, num_layers=3).from_pretrained(lm_embedding_model_name)
 
 sent_embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
 

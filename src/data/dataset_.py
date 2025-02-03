@@ -92,9 +92,9 @@ class Dataset():
         self.preprocess()
 
         data_collator = DataCollatorForBart(self.tokenizer, model.config.decoder_start_token_id)
-        train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator)
-        val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True, collate_fn=data_collator)
-        test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, collate_fn=data_collator)
+        train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator, drop_last=True)
+        val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True, collate_fn=data_collator, drop_last=True)
+        test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, collate_fn=data_collator, drop_last=True)
         
         return train_dataloader, val_dataloader, test_dataloader
 

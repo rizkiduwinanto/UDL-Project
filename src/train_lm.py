@@ -43,8 +43,10 @@ def train_lm(
         for batch in train_loader:
             optimizer.zero_grad()
             data = {k: v.to(device) for k, v in batch.items()}
+            print("Input shape: ", data['labels'].shape)
             encoder_outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
             latent_decoder_outputs = model.encoder_output_to_decoder_input(encoder_outputs, data['attention_mask'])
+            print("Output shape: ", latent_decoder_outputs.shape)
             loss = model(labels=data['labels'], encoder_outputs=latent_decoder_outputs).loss
             loss.backward()
             optimizer.step()

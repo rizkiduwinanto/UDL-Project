@@ -47,7 +47,6 @@ class Glow(nn.Module):
         for i, block in enumerate(self.blocks[::-1]):
             if i == 0:
                 x = block.reverse(z[-1], z[-1], reconstruct=reconstruct)
-
             else:
                 x = block.reverse(x, z[-(i + 1)], reconstruct=reconstruct)
         return x
@@ -108,13 +107,11 @@ class Block(nn.Module):
 
     def reverse(self, x, eps=None, reconstruct=False):
         input = x
-
         if reconstruct:
             if self.split:
                 input = torch.cat([x, eps], 2)
             else:
                 input = eps
-
         else:
             if self.split:
                 mean, log_std = self.prior(input).chunk(2, 1)
@@ -129,11 +126,12 @@ class Block(nn.Module):
         for flow in self.flows[::-1]:
             input = flow.reverse(input)
         
-        b_size, n_channel, h, w = x.shape
+        b_size, n_channel, h, w = input.shape
 
         input_unsqueezed = input.view(b_size, n_channel // self.squeeze_size, 2, 2, h, w)
         input_unsqueezed = input_unsqueezed.permute(0, 1, 4, 2, 5, 3).contiguous()
-        input_unsqueezed = input_unsqueezed.view(b_size, n_channel // self.squeeze_size, height * 2, width * 2)
+        input_unsqueezed = input_unsqueezed.view(b_size, n_channel // self.squeeze_size, h * 2, w * 2)
+
         return input_unsqueezed
   
 class FlowStep(nn.Module):
@@ -224,6 +222,22 @@ class AffineCoupling(nn.Module):
         inputs = torch.cat([out_a, in_b], dim=1)
         return inputs
 
+
+# class Transformer(nn.Module):
+#     def __init__(self, in_channel, device="cuda"):
+#         super(Transformer, self).__init__()
+
+#         self.device = device
+
+#         self.net = nn.Sequential(
+#             nn.Conv2d(in_channel, 256, 3, padding=1),
+#             nn.ReLU(inplace=True),
+#             nn.Conv2d(256, 256, 1),
+#             nn.ReLU(inplace=True),
+#             nn.Conv2d(256, in_channel, 3, padding=1),
+#         ).to(self.
+
+
 class Invertible2dConv(nn.Module):
     def __init__(self, in_channel, device="cuda"):
         super(Invertible2dConv, self).__init__()
@@ -298,7 +312,7 @@ class Invertible2dConvLU(nn.Module):
     def reverse(self, x):
         weight = self.calc_weight()
 
-        return F.conv2d(output, weight.squeeze().inverse().unsqueeze(2).unsqueeze(3))
+        return F.conv2d(x.to(self.device), weight.squeeze().inverse().unsqueeze(2).unsqueeze(3).to(self.device))
 
 class ActNorm(nn.Module):
     def __init__(self, num_channels, logdet=True, device="cuda"):

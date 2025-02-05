@@ -49,7 +49,7 @@ class Dataset():
         self.data = load_dataset(dataset_name, split={'train': 'train[:1%]', 'test': 'test[:1%]'}) 
         self.tokenizer = tokenizer_func
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = "mps" if torch.backends.mps.is_available() else "cuda"
         self.embedding_model = embedding_model.to(self.device)
         self.embedding_tokenizer = embedding_tokenizer_func
 
@@ -92,7 +92,7 @@ class Dataset():
     def create_dataloader(self, model):
         self.preprocess()
 
-        data_collator = default_data_collator
+        data_collator = DataCollatorForBart(self.tokenizer, model.config.decoder_start_token_id)
         train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator)
         val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True, collate_fn=data_collator)
         test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, collate_fn=data_collator)
@@ -107,8 +107,8 @@ class Dataset():
         test_embedding = self.to_model(self.tokenized_data["test"].with_format("torch"))
 
         train_dataloader = DataLoader(train_embedding , shuffle=True, batch_size=self.batch_size)
-        val_dataloader = DataLoader(val_embedding, shuffle=True, batch_size=self.batch_size)
-        test_dataloader = DataLoader(test_embedding, shuffle=True, batch_size=self.batch_size)
+        val_dataloader = DataLoader(val_embedding, shuffle=False, batch_size=self.batch_size)
+        test_dataloader = DataLoader(test_embedding, shuffle=False, batch_size=self.batch_size)
 
         return train_dataloader, val_dataloader, test_dataloader
 

@@ -14,3 +14,4 @@ encoding_v2.ipynb
 encoding_v3.ipynb
 encoding_v4.ipynb
 src/inference.ipynb
+*.pth

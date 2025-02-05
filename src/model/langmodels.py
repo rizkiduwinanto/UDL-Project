@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from transformers import BartForConditionalGeneration
 
 class BARTAutoencoderLatent(BartForConditionalGeneration):
-    def __init__(self, config, num_encoder_latents=32, num_decoder_latents=32, dim_ae=32, dim_lm=768, num_layers=3, l2_normalize_latents=False):
+    def __init__(self, config, num_encoder_latents=32, num_decoder_latents=32, dim_ae=32, dim_lm=768, num_layers=2, l2_normalize_latents=False):
         super(BARTAutoencoderLatent, self).__init__(config)
         self.num_encoder_latents = num_encoder_latents
         self.num_decoder_latents = num_decoder_latents
@@ -16,7 +16,7 @@ class BARTAutoencoderLatent(BartForConditionalGeneration):
 
     def get_latents(self, encoder_outputs, attention_mask):
         hidden_state = encoder_outputs[0]
-        latent = self.ae.encode(hidden_state, attention_mask)
+        latent = self.ae.encode(hidden_state, attention_mask.bool())
         return latent
 
     def get_output(self, latent):
@@ -24,8 +24,8 @@ class BARTAutoencoderLatent(BartForConditionalGeneration):
 
     def encoder_output_to_decoder_input(self, encoder_outputs, attention_mask):
         latent = self.get_latents(encoder_outputs, attention_mask)  
-        output = self.get_output(latent)
-        return output   
+        encoder_outputs['last_hidden_state'] = self.get_output(latent)
+        return encoder_outputs
 
 class PerceiverAutoencoder(nn.Module):
     def __init__(

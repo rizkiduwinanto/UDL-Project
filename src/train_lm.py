@@ -46,6 +46,7 @@ def train_lm(
             with torch.no_grad():
                 encoder_outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
             latent_decoder_outputs = model.encoder_output_to_decoder_input(encoder_outputs, data['attention_mask'])
+            print("Output shape: ", latent_decoder_outputs.shape)
             loss = model(labels=data['labels'], encoder_outputs=latent_decoder_outputs).loss
             loss.backward()
             optimizer.step()

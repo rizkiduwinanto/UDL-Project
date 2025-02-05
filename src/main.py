@@ -29,12 +29,7 @@ if __name__ == '__main__':
         length=512, 
         batch_size=48
     )
-<<<<<<< Updated upstream
     train_dataloader, val_dataloader, test_dataloader = data.create_dataloader(lm_embedding_model)
     train_lm(lm_embedding_model, train_dataloader, val_dataloader, test_dataloader, epochs=100, early_stopping=10, learning_rate=1e-2, weight_decay=1e-3, log_path="log.txt", save_path="lm_model.pth")
-=======
-    train_dataloader, val_dataloader, test_dataloader = data.create_dataloader()
-    train_lm(lm_embedding_model, train_dataloader, val_dataloader, test_dataloader, epochs=30, early_stopping=10, learning_rate=1e-2, weight_decay=1e-3, log_path="log.txt", save_path="lm_model.pth")
->>>>>>> Stashed changes
     # glow = Glow(1, 4, 4)
     # train_flow(glow, train_dataloader, val_dataloader, test_dataloader, epochs=1, early_stopping=10, learning_rate=1e-2, weight_decay=1e-3, device="cuda", log_path="log.txt", save_path="model.pth")

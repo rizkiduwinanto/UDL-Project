@@ -43,8 +43,8 @@ if __name__ == '__main__':
         embedding_tokenizer_func=sent_embedding_tokenizer, 
         embedding_model=sent_embedding_model, 
         length=512, 
-        batch_size=48,
-        is_truncated=True
+        batch_size=64,
+        is_truncated=False
     )
     train_dataloader, val_dataloader, test_dataloader = data.create_dataloader(lm_embedding_model)
     lm_embedding_model.load_state_dict(torch.load(save_path, map_location=device))

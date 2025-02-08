@@ -45,8 +45,12 @@ class Dataset():
         embedding_tokenizer_func=None,
         length=512,
         batch_size=2,
+        is_truncated=False
     ):
-        self.data = load_dataset(dataset_name, split={'train': 'train[:1%]', 'test': 'test[:1%]'}) 
+        if is_truncated:
+            self.data = load_dataset(dataset_name, split={'train': 'train[:1%]', 'test': 'test[:1%]'})
+        else:
+            self.data = load_dataset(dataset_name) 
         self.tokenizer = tokenizer_func
 
         self.device = "mps" if torch.backends.mps.is_available() else "cuda"
@@ -62,7 +66,7 @@ class Dataset():
         return {
             'input_ids': inputs['input_ids'].squeeze(),
             'attention_mask': inputs['attention_mask'].squeeze(),
-            'labels': inputs['input_ids'].squeeze(),
+            'labels': inputs['input_ids'].clone().squeeze(),
         }
 
     def tokenize_embedding(self, string):
@@ -89,10 +93,14 @@ class Dataset():
         else:
             self.tokenized_data = data.map(self.tokenize, remove_columns=['text'])
 
-    def create_dataloader(self, model):
+    def create_dataloader(self, model=None, is_default_collator=True):
         self.preprocess()
 
-        data_collator = DataCollatorForBart(self.tokenizer, model.config.decoder_start_token_id)
+        if is_default_collator:
+            data_collator = default_data_collator
+        else:
+            data_collator = DataCollatorForBart(self.tokenizer, model.config.decoder_start_token_id)
+            
         train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator)
         val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True, collate_fn=data_collator)
         test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, collate_fn=data_collator)

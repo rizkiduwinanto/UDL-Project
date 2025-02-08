@@ -37,7 +37,7 @@ if __name__ == '__main__':
         train_dataloader, 
         val_dataloader, 
         test_dataloader, 
-        epochs=1, 
+        epochs=100, 
         early_stopping=10, 
         learning_rate=5e-5, 
         weight_decay=1e-3, 

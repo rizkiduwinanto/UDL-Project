@@ -45,7 +45,7 @@ def train_lm(
     progress_bar = tqdm(range(num_training_steps))
 
     lr_scheduler = get_scheduler(
-        name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+        name="linear", optimizer=optimizer, num_warmup_steps=1000, num_training_steps=num_training_steps
     )
     
     for epoch in range(epochs):
@@ -55,7 +55,8 @@ def train_lm(
             optimizer.zero_grad()
             data = {k: v.to(device) for k, v in batch.items()}
 
-            encoder_outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+            with torch.no_grad():
+                encoder_outputs = model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
             latent_decoder_outputs = model.encoder_output_to_decoder_input(encoder_outputs, data['attention_mask'])
 
             loss = model(labels=data['labels'], encoder_outputs=latent_decoder_outputs).loss
@@ -77,6 +78,8 @@ def train_lm(
         with torch.no_grad():
             val_loss = 0
             total_lm_val_loss = 0
+
+            counter = 0 
             
             progress_bar_val = tqdm(range(len(val_loader)))
             for batch in val_loader:
@@ -85,6 +88,7 @@ def train_lm(
                 latent_decoder_outputs = model.encoder_output_to_decoder_input(encoder_outputs, attention_mask = data['attention_mask'])
                 loss = model(labels=data['labels'], encoder_outputs=latent_decoder_outputs).loss
                 val_loss += loss.item()
+                total_lm_val_loss += model(input_ids = data['input_ids'], attention_mask = data['attention_mask'], labels=data['labels']).loss.item()
 
                 generated_from_ae = model.generate(encoder_outputs=latent_decoder_outputs)
                 text_from_ae = tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
@@ -96,6 +100,12 @@ def train_lm(
                     valid_token_ids = valid_token_ids.to(torch.int)
                     batch_valid_token_ids.append(valid_token_ids.tolist())
                 generated_texts = tokenizer.batch_decode(batch_valid_token_ids, skip_special_tokens=True)
+
+                if counter % 50 == 0:
+                    print("Text from AE:", text_from_ae)
+                    print("Generated Texts:", generated_texts)
+
+                counter += 1
 
                 bleu.add_batch(predictions=text_from_ae, references=generated_texts)
                 rouge.add_batch(predictions=text_from_ae, references=generated_texts)
@@ -131,6 +141,7 @@ def train_lm(
         
         print(f'Epoch: {epoch + 1}')
         print(f'Train Loss: {train_loss}')
+        print(f'Validation LM Loss: {total_lm_val_loss}')
         print(f'Validation Loss: {val_loss}', end='\n\n')
 
     if test_loader is not None:
@@ -139,6 +150,8 @@ def train_lm(
         with torch.no_grad():
             model.eval()
             test_loss = 0
+
+            counter = 0 
 
             progress_bar_test = tqdm(range(len(test_loader)))
 
@@ -160,6 +173,12 @@ def train_lm(
                     valid_token_ids = valid_token_ids.to(torch.int)
                     batch_valid_token_ids.append(valid_token_ids.tolist())
                 generated_texts = tokenizer.batch_decode(batch_valid_token_ids, skip_special_tokens=True)
+
+                if counter % 50 == 0:
+                    print("Text from AE:", text_from_ae)
+                    print("Generated Texts:", generated_texts)
+
+                counter += 1
 
                 bleu.add_batch(predictions=text_from_ae, references=generated_texts)
                 rouge.add_batch(predictions=text_from_ae, references=generated_texts)

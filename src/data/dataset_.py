@@ -44,13 +44,9 @@ class Dataset():
         embedding_model=None,
         embedding_tokenizer_func=None,
         length=512,
-        batch_size=2,
-        is_truncated=False
+        batch_size=2
     ):
-        if is_truncated:
-            self.data = load_dataset(dataset_name, split={'train': 'train[:1%]', 'test': 'test[:1%]'})
-        else:
-            self.data = load_dataset(dataset_name) 
+        self.data = load_dataset(dataset_name) 
         self.tokenizer = tokenizer_func
 
         self.device = "mps" if torch.backends.mps.is_available() else "cuda"

@@ -27,8 +27,7 @@ if __name__ == '__main__':
         embedding_tokenizer_func=sent_embedding_tokenizer, 
         embedding_model=sent_embedding_model, 
         length=512, 
-        batch_size=1,
-        is_truncated=True
+        batch_size=32
     )
     train_dataloader, val_dataloader, test_dataloader = data.create_dataloader()
     train_lm(

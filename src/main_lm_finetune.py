@@ -40,6 +40,6 @@ if __name__ == '__main__':
         early_stopping=10, 
         learning_rate=5e-5, 
         weight_decay=1e-3, 
-        log_path="/tmp/results/log.txt", 
-        save_path="/tmp/results/lm_model_large.pth"
+        log_path="log.txt", 
+        save_path="lm_model_large.pth"
     )

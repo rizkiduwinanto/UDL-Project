@@ -45,7 +45,7 @@ class PerceiverAutoencoder(nn.Module):
     ):
         super(PerceiverAutoencoder, self).__init__()
         self.perceiver_encoder = PerceiverResampler(dim=dim_lm, dim_latent=dim_ae, depth=depth, dim_head=dim_head,
-                                                    num_latents=num_encoder_latents, max_seq_len=max_seq_len, ff_mult=ff_mult)
+                                                    num_latents=num_encoder_latents, max_seq_len=max_seq_len, ff_mult=ff_mult, l2_normalize_latents=l2_normalize_latents)
         self.perceiver_decoder = PerceiverResampler(dim=dim_ae, dim_latent=dim_lm, depth=depth, dim_head=dim_head,
                                                         num_latents=num_decoder_latents, max_seq_len=num_encoder_latents, ff_mult=ff_mult)
 
@@ -71,8 +71,10 @@ class PerceiverResampler(nn.Module):
         max_seq_len=64,
         ff_mult=4,
         legacy=False,
+        l2_normalize_latents=False
     ):
         super(PerceiverResampler, self).__init__()
+        self.l2_normalize_latents = l2_normalize_latents
         self.pos_emb = AbsolutePositionalEmbedding(dim, max_seq_len)
 
         if legacy:
@@ -104,6 +106,8 @@ class PerceiverResampler(nn.Module):
             latents = ff(latents) + latents
 
         latents = self.output_proj(self.final_norm(latents))
+        if self.l2_normalize_latents:
+            latents = F.normalize(latents, dim=-1) * math.sqrt(latents.shape[-1])
         return latents
 
 class PerceiverAttention(nn.Module):
@@ -165,7 +169,6 @@ class PerceiverAttention(nn.Module):
             max_neg_value = -torch.finfo(sim.dtype).max
             mask = F.pad(mask, (0, latents.shape[-2]), value=True)
             mask = rearrange(mask, 'b j -> b 1 1 j')
-            mask = mask.bool()
             sim = sim.masked_fill(~mask, max_neg_value)
 
         attn = sim.softmax(dim=-1, dtype=torch.float32)

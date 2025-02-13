@@ -27,12 +27,14 @@ def train_lm(
     weight_decay=1e-3,
     device = "mps" if torch.backends.mps.is_available() else "cuda",
     log_path=None,
-    save_path=None
+    save_path=None,
+    save_path_bleu=None
 ):
     
     model.to(device)
     optimizer = optimizer(model.parameters(), lr=learning_rate)
     best_val_loss = float("inf")
+    best_bleu_score = 0
     early_stopping_counter = 0
 
     writer = SummaryWriter()
@@ -123,6 +125,11 @@ def train_lm(
                 val_loss,
                 epoch + 1
             )
+
+            if bleu_score['bleu'] > best_bleu_score:
+                best_bleu_score = bleu_score['bleu']
+                if save_path_bleu is not None:
+                    torch.save(model.state_dict(), save_path_bleu)
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss

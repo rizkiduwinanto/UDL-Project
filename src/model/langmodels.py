@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from transformers import BartForConditionalGeneration
 
 class BARTAutoencoderLatent(BartForConditionalGeneration):
-    def __init__(self, config, num_encoder_latents=32, num_decoder_latents=32, dim_ae=32, dim_lm=1024, num_layers=2, l2_normalize_latents=False):
+    def __init__(self, config, num_encoder_latents=32, num_decoder_latents=32, dim_ae=32, dim_lm=768, num_layers=2, l2_normalize_latents=False):
         super(BARTAutoencoderLatent, self).__init__(config)
         self.num_encoder_latents = num_encoder_latents
         self.num_decoder_latents = num_decoder_latents

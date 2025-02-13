@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=UDL
 #SBATCH --output=UDL.out
-#SBATCH --time=48:00:00
+#SBATCH --time=36:00:00
 #SBATCH --gpus-per-node=1
 #SBATCH --mem=12GB
 #SBATCH --partition=gpu

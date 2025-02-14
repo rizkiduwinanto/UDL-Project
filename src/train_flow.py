@@ -6,6 +6,7 @@ from utils.helper import calc_loss
 
 def train_flow(
     model,
+    lm_model,
     train_loader,
     val_loader,
     test_loader=None,
@@ -22,6 +23,7 @@ def train_flow(
         device = "mps"
 
     model.to(device)
+    lm_model.to(device)
     optimizer = optimizer(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     best_val_loss = float("inf")
     early_stopping_counter = 0
@@ -40,8 +42,13 @@ def train_flow(
         train_loss = 0
         for batch in train_loader:
             optimizer.zero_grad()
-            batch = batch.to(device)
-            log_p, logdet, flow_z = model(batch)
+            data = {k: v.to(device) for k, v in batch.items()}
+
+            with torch.no_grad():
+                encoder_outputs = lm_model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+                latents = lm_model.get_latents(encoder_outputs, data['attention_mask'])
+
+            log_p, logdet, flow_z = model(latents.unsqueeze(1))
             loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
             loss.backward()
             optimizer.step()
@@ -61,11 +68,10 @@ def train_flow(
             
             progress_bar_val = tqdm(range(len(val_loader)))
             for batch in val_loader:
-                log_p, logdet, flow_z = model(batch)
-                noise_list = [torch.randn_like(z) for z in flow_z]
-                noise_list.reshape()
-                sample = model.reverse(noise_list, reconstruct=True)
-
+                data = {k: v.to(device) for k, v in batch.items()}
+                encoder_outputs = lm_model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+                latents = lm_model.get_latents(encoder_outputs, data['attention_mask'])
+                log_p, logdet, flow_z = model(latents.unsqueeze(1))
                 loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
                 val_loss += loss.item()
                 progress_bar_val.update(1)
@@ -106,7 +112,10 @@ def train_flow(
             progress_bar_test = tqdm(range(len(test_loader)))
 
             for batch in test_loader:
-                log_p, logdet, flow_z = model(batch)
+                data = {k: v.to(device) for k, v in batch.items()}
+                encoder_outputs = lm_model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
+                latents = lm_model.get_latents(encoder_outputs, data['attention_mask'])
+                log_p, logdet, flow_z = model(latents.unsqueeze(1))
                 loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
                 test_loss += loss.item()
                 progress_bar_test.update(1)

@@ -2,11 +2,33 @@ import torch
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
+from transformers.modeling_outputs import BaseModelOutput
 from utils.helper import calc_loss
+
+def generate_samples(model, device, n_block=4, n_samples=1):
+    model.eval()
+    with torch.no_grad():
+        z_list = []
+        latent_channels = 1
+        latent_height = 32
+        latent_width = 32
+        for i in range(n_block - 1):
+            latent_channels *= 2
+            latent_height //= 2
+            latent_width //= 2
+            z = torch.randn(n_samples, latent_channels, latent_height, latent_width).to(device)
+            z_list.append(z)
+        latent_height //= 2
+        latent_width //= 2
+        z = torch.randn(n_samples, latent_channels * 4, latent_height, latent_width).to(device)
+        z_list.append(z)
+        samples = model.reverse(z_list, reconstruct=False).cpu()
+    return samples
 
 def train_flow(
     model,
     lm_model,
+    tokenizer,
     train_loader,
     val_loader,
     test_loader=None,
@@ -65,6 +87,7 @@ def train_flow(
         with torch.no_grad():
             model.eval()
             val_loss = 0
+            counter = 0
             
             progress_bar_val = tqdm(range(len(val_loader)))
             for batch in val_loader:
@@ -74,8 +97,17 @@ def train_flow(
                 log_p, logdet, flow_z = model(latents.unsqueeze(1))
                 loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
                 val_loss += loss.item()
+                if counter % 50 == 0:
+                    ## Generate Sample
+                    latent_samples = generate_samples(model, device)
+                    latent_samples = latent_samples.squeeze(1)
+                    last_hidden_state = lm_model.get_output(latent_samples.to(device))
+                    latent_output = BaseModelOutput(last_hidden_state=last_hidden_state)
+                    generated_from_ae = lm_model.generate(encoder_outputs=latent_output)
+                    text_from_ae = tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
+                    print("Generated Texts:", text_from_ae)
+                counter += 1
                 progress_bar_val.update(1)
-
             progress_bar_val.close()
             val_loss /= len(val_loader)
             writer.add_scalar('validation loss',
@@ -108,6 +140,7 @@ def train_flow(
         with torch.no_grad():
             model.eval()
             test_loss = 0
+            counter_test = 0
 
             progress_bar_test = tqdm(range(len(test_loader)))
 
@@ -118,8 +151,17 @@ def train_flow(
                 log_p, logdet, flow_z = model(latents.unsqueeze(1))
                 loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
                 test_loss += loss.item()
+                if counter_test % 50 == 0:
+                    ## Generate Sample
+                    latent_samples = generate_samples(model, device)
+                    latent_samples = latent_samples.squeeze(1)
+                    last_hidden_state = lm_model.get_output(latent_samples.to(device))
+                    latent_output = BaseModelOutput(last_hidden_state=last_hidden_state)
+                    generated_from_ae = lm_model.generate(encoder_outputs=latent_output)
+                    text_from_ae = tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
+                    print("Generated Texts:", text_from_ae)
+                counter_test += 1
                 progress_bar_test.update(1)
-            
             progress_bar_test.close()
             test_loss /= len(test_loader)
             writer.add_scalar('testing loss',

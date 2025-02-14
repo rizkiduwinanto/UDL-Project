@@ -46,7 +46,7 @@ class Dataset():
         length=512,
         batch_size=2
     ):
-        self.data = load_dataset(dataset_name)
+        self.data = load_dataset(dataset_name) 
         self.tokenizer = tokenizer_func
 
         self.device = "mps" if torch.backends.mps.is_available() else "cuda"
@@ -99,7 +99,7 @@ class Dataset():
             
         train_dataloader = DataLoader(self.tokenized_data["train"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator)
         val_dataloader = DataLoader(self.tokenized_data["validation"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator)
-        test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, collate_fn=data_collator)
+        test_dataloader = DataLoader(self.tokenized_data["test"], shuffle=True, batch_size=self.batch_size, collate_fn=data_collator)
         
         return train_dataloader, val_dataloader, test_dataloader
 

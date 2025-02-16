@@ -134,7 +134,7 @@ def train_flow(
 
             with torch.no_grad():
                 num_samples = len(texts_true)
-                progress_bar = tqdm(range(num_samples))
+                progress_bar_test = tqdm(range(num_samples))
 
                 for i in range(num_samples):
                     latent_samples = generate_samples(model, device)
@@ -144,8 +144,8 @@ def train_flow(
                     generated_from_ae = lm_model.generate(encoder_outputs=latent_output)
                     text_from_ae = tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
                     texts_list.append(text_from_ae[0])
-                    progress_bar.update(1)
-                progress_bar.close()
+                    progress_bar_test.update(1)
+                progress_bar_test.close()
 
             mauve = compute_mauve(texts_list, texts_true)
             perplexity = compute_perplexity(texts_list)
@@ -159,9 +159,9 @@ def train_flow(
         print(f'Epoch: {epoch + 1}')
         print(f'Train Loss: {train_loss}')
         print(f'Validation Loss: {val_loss}')
-        print(f'MAUVE: {mauve}')
+        print(f'MAUVE: {mauve[0]}')
         print(f'Perplexity: {perplexity}')
-        print(f'Diversity: {diversity}')
+        print(f'Diversity: {diversity["diversity"]}')
         print(f'Memorization: {memorization}', end='\n\n')
         
     writer.flush()

@@ -33,7 +33,7 @@ if __name__ == '__main__':
         embedding_tokenizer_func=sent_embedding_tokenizer, 
         embedding_model=sent_embedding_model, 
         length=512, 
-        batch_size=64
+        batch_size=48
     )
     train_dataloader, val_dataloader, test_dataloader = data.create_dataloader()
     lm_embedding_model.load_state_dict(torch.load(save_path, map_location=device))
@@ -48,11 +48,11 @@ if __name__ == '__main__':
         train_dataloader,
         val_dataloader,
         test_dataloader,
-        epochs=30,
+        epochs=50,
         early_stopping=10,
         learning_rate=5e-5,
         weight_decay=1e-3,
-        log_path="/tmp/results/log_flow.txt",
-        save_path="/tmp/results/flow_model_best_loss.pth",
+        log_path="log_flow.txt",
+        save_path="flow_model_best_loss.pth",
         texts_true=texts_samples
     )

@@ -1,0 +1,20 @@
+slurmstepd: error: *** JOB 15193454 ON v100gpu16 CANCELLED AT 2025-02-16T16:29:33 ***
+
+###############################################################################
+Hábrók Cluster
+Job 15193454 for user s5764971
+Finished at: Sun Feb 16 16:29:40 CET 2025
+
+Job details:
+============
+
+No such job
+
+Acknowledgements:
+=================
+
+Please see this page for information about acknowledging Hábrók in your publications:
+
+https://wiki.hpc.rug.nl/habrok/introduction/scientific_output
+
+################################################################################

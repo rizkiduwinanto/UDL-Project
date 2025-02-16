@@ -9,6 +9,8 @@ import torch
 
 SEED = 8
 
+NUM_SAMPLES = 1000
+
 random.seed(SEED)
 
 save_path = "./model/lm_model_best_loss.pth"
@@ -31,11 +33,13 @@ if __name__ == '__main__':
         embedding_tokenizer_func=sent_embedding_tokenizer, 
         embedding_model=sent_embedding_model, 
         length=512, 
-        batch_size=32
+        batch_size=64
     )
     train_dataloader, val_dataloader, test_dataloader = data.create_dataloader()
     lm_embedding_model.load_state_dict(torch.load(save_path, map_location=device))
     glow_model = Glow(in_channel=1, n_flow=100, n_block=4, device=device)
+
+    texts_samples = data.get_sampled_test_data(NUM_SAMPLES)
 
     train_flow(
         glow_model,
@@ -44,10 +48,11 @@ if __name__ == '__main__':
         train_dataloader,
         val_dataloader,
         test_dataloader,
-        epochs=50,
+        epochs=30,
         early_stopping=10,
         learning_rate=5e-5,
         weight_decay=1e-3,
-        log_path="log_flow.txt",
-        save_path="flow_model_best_loss.pth"
+        log_path="/tmp/results/log_flow.txt",
+        save_path="/tmp/results/flow_model_best_loss.pth",
+        texts_true=texts_samples
     )

@@ -46,7 +46,7 @@ class Dataset():
         length=512,
         batch_size=2
     ):
-        self.data = load_dataset(dataset_name) 
+        self.data = load_dataset(dataset_name)
         self.tokenizer = tokenizer_func
 
         self.device = "mps" if torch.backends.mps.is_available() else "cuda"

@@ -4,6 +4,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 from transformers.modeling_outputs import BaseModelOutput
 from utils.helper import calc_loss
+from utils.evaluation import compute_mauve, compute_perplexity, compute_diversity, compute_memorization, compute_wordcount
 
 def generate_samples(model, device, n_block=4, n_samples=1):
     model.eval()
@@ -40,6 +41,7 @@ def train_flow(
     device="cuda",
     log_path=None,
     save_path=None,
+    texts_true=None
 ):
     if torch.backends.mps.is_available():
         device = "mps"
@@ -58,8 +60,6 @@ def train_flow(
 
     num_training_steps = epochs * len(train_loader) 
     progress_bar = tqdm(range(num_training_steps))
-
-    texts_true = data.get_sampled_test_data(NUM_SAMPLES)
     
     for epoch in range(epochs):
         model.train()
@@ -128,28 +128,29 @@ def train_flow(
                     print(f'--- Early Stop @ {epoch + 1} ---')
                     break
         
-        #Evaluate every epoch
-        texts_list = []
+        if texts_true is not None:
+            #Evaluate every epoch
+            texts_list = []
 
-        with torch.no_grad():
-            progress_bar = tqdm(range(NUM_SAMPLES))
+            with torch.no_grad():
+                num_samples = len(texts_true)
+                progress_bar = tqdm(range(num_samples))
 
-            for i in range(NUM_SAMPLES):
-                latent_samples = generate_samples(glow_model, device)
-                latent_samples = latent_samples.squeeze(1)
-                last_hidden_state = lm_embedding_model.get_output(latent_samples.to(device))
-                latent_output = BaseModelOutput(last_hidden_state=last_hidden_state)
-                generated_from_ae = lm_embedding_model.generate(encoder_outputs=latent_output)
-                text_from_ae = lm_embedding_tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
-                texts_list.append(text_from_ae[0])
-                progress_bar.update(1)
-            progress_bar.close()
+                for i in range(num_samples):
+                    latent_samples = generate_samples(model, device)
+                    latent_samples = latent_samples.squeeze(1)
+                    last_hidden_state = lm_model.get_output(latent_samples.to(device))
+                    latent_output = BaseModelOutput(last_hidden_state=last_hidden_state)
+                    generated_from_ae = lm_model.generate(encoder_outputs=latent_output)
+                    text_from_ae = tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
+                    texts_list.append(text_from_ae[0])
+                    progress_bar.update(1)
+                progress_bar.close()
 
-        mauve = compute_mauve(texts_list, texts_true)
-        perplexity = compute_perplexity(texts_list)
-        diversity = compute_diversity(texts_list)
-        memorization = compute_memorization(texts_list, texts_true)
-
+            mauve = compute_mauve(texts_list, texts_true)
+            perplexity = compute_perplexity(texts_list)
+            diversity = compute_diversity(texts_list)
+            memorization = compute_memorization(texts_list, texts_true)
 
         if log_path is not None:
             with open(log_path, "a") as log_file:

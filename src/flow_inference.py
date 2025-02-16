@@ -7,6 +7,9 @@ import torch.nn.functional as F
 from train_flow import generate_samples
 from model.flow import Glow
 import evaluate
+from utils.evaluation import compute_mauve, compute_perplexity, compute_diversity, compute_memorization, compute_wordcount
+from data.dataset_ import Dataset
+from tqdm.auto import tqdm
 
 SEED = 8
 
@@ -23,9 +26,15 @@ config = BartForConditionalGeneration.from_pretrained(lm_embedding_model_name).c
 lm_embedding_tokenizer = AutoTokenizer.from_pretrained(lm_embedding_model_name)
 lm_embedding_model = BARTAutoencoderLatent(config, num_encoder_latents=16, num_decoder_latents=16, dim_ae=32, dim_lm=768, num_layers=2).from_pretrained(lm_embedding_model_name)
 
+sent_embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+
+sent_embedding_tokenizer = AutoTokenizer.from_pretrained(sent_embedding_model_name)
+sent_embedding_model = AutoModel.from_pretrained(sent_embedding_model_name)
+
 bleu = evaluate.load('bleu')
 
 MAX_SEQ_LEN = 512
+NUM_SAMPLES = 10
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -35,13 +44,39 @@ if __name__ == '__main__':
     bart_model.to(device)
 
     glow_model = Glow(in_channel=1, n_flow=100, n_block=4, device=device) 
-    glow_model.load_state_dict(torch.load(save_flow_path))
+    loader = torch.load('./model.pth', map_location=device)
+    glow_model.load_state_dict(loader)
+
+    data = Dataset(
+        tokenizer_func=lm_embedding_tokenizer,
+        embedding_tokenizer_func=sent_embedding_tokenizer, 
+        embedding_model=sent_embedding_model, 
+        length=512, 
+        batch_size=32
+    )
+
+    texts_true = data.get_sampled_test_data(NUM_SAMPLES)
+    texts_list = []
+
+    progress_bar = tqdm(range(NUM_SAMPLES))
 
     with torch.no_grad():
-        latent_samples = generate_samples(glow_model, device)
-        latent_samples = latent_samples.squeeze(1)
-        last_hidden_state = lm_embedding_model.get_output(latent_samples.to(device))
-        latent_output = BaseModelOutput(last_hidden_state=last_hidden_state)
-        generated_from_ae = lm_embedding_model.generate(encoder_outputs=latent_output)
-        text_from_ae = lm_embedding_tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
-        print("Generated Texts:", text_from_ae)
+        for i in range(NUM_SAMPLES):
+            latent_samples = generate_samples(glow_model, device)
+            latent_samples = latent_samples.squeeze(1)
+            last_hidden_state = lm_embedding_model.get_output(latent_samples.to(device))
+            latent_output = BaseModelOutput(last_hidden_state=last_hidden_state)
+            generated_from_ae = lm_embedding_model.generate(encoder_outputs=latent_output)
+            text_from_ae = lm_embedding_tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
+            texts_list.append(text_from_ae)
+            progress_bar.update(1)
+        progress_bar.close()
+
+    flattened_text_list = [item[0] for item in texts_list]
+
+    print("mauve:", compute_mauve(flattened_text_list, texts_true)[0])
+    print("perplexity:", compute_perplexity(flattened_text_list))
+    print("diversity:", compute_diversity(flattened_text_list)['diversity'])
+    print("memorization:", compute_memorization(flattened_text_list, texts_true))
+
+    

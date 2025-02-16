@@ -54,10 +54,12 @@ def train_flow(
 
     if log_path is not None:
         with open(log_path, "w") as log_file:
-            log_file.write("epoch,train_loss,val_loss\n")
+            log_file.write("epoch,train_loss,val_loss,mauve,ppl,div,mem\n")
 
     num_training_steps = epochs * len(train_loader) 
     progress_bar = tqdm(range(num_training_steps))
+
+    texts_true = data.get_sampled_test_data(NUM_SAMPLES)
     
     for epoch in range(epochs):
         model.train()
@@ -125,49 +127,41 @@ def train_flow(
                 if early_stopping_counter >= early_stopping:
                     print(f'--- Early Stop @ {epoch + 1} ---')
                     break
+        
+        #Evaluate every epoch
+        texts_list = []
+
+        with torch.no_grad():
+            progress_bar = tqdm(range(NUM_SAMPLES))
+
+            for i in range(NUM_SAMPLES):
+                latent_samples = generate_samples(glow_model, device)
+                latent_samples = latent_samples.squeeze(1)
+                last_hidden_state = lm_embedding_model.get_output(latent_samples.to(device))
+                latent_output = BaseModelOutput(last_hidden_state=last_hidden_state)
+                generated_from_ae = lm_embedding_model.generate(encoder_outputs=latent_output)
+                text_from_ae = lm_embedding_tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
+                texts_list.append(text_from_ae[0])
+                progress_bar.update(1)
+            progress_bar.close()
+
+        mauve = compute_mauve(texts_list, texts_true)
+        perplexity = compute_perplexity(texts_list)
+        diversity = compute_diversity(texts_list)
+        memorization = compute_memorization(texts_list, texts_true)
+
 
         if log_path is not None:
             with open(log_path, "a") as log_file:
-                log_file.write(f"{epoch + 1},{train_loss},{val_loss}\n")
+                log_file.write(f"{epoch + 1},{train_loss},{val_loss},{mauve[0]},{perplexity},{diversity['diversity']},{memorization}\n")
         
         print(f'Epoch: {epoch + 1}')
         print(f'Train Loss: {train_loss}')
-        print(f'Validation Loss: {val_loss}', end='\n\n')
-
-    if test_loader is not None:
-        model.load_state_dict(torch.load(save_path))
-
-        with torch.no_grad():
-            model.eval()
-            test_loss = 0
-            counter_test = 0
-
-            progress_bar_test = tqdm(range(len(test_loader)))
-
-            for batch in test_loader:
-                data = {k: v.to(device) for k, v in batch.items()}
-                encoder_outputs = lm_model.get_encoder()(input_ids = data['input_ids'], attention_mask = data['attention_mask'])
-                latents = lm_model.get_latents(encoder_outputs, data['attention_mask'])
-                log_p, logdet, flow_z = model(latents.unsqueeze(1))
-                loss, log_p, logdet = calc_loss(log_p, logdet.mean(), 64, 300)
-                test_loss += loss.item()
-                if counter_test % 50 == 0:
-                    ## Generate Sample
-                    latent_samples = generate_samples(model, device)
-                    latent_samples = latent_samples.squeeze(1)
-                    last_hidden_state = lm_model.get_output(latent_samples.to(device))
-                    latent_output = BaseModelOutput(last_hidden_state=last_hidden_state)
-                    generated_from_ae = lm_model.generate(encoder_outputs=latent_output)
-                    text_from_ae = tokenizer.batch_decode(generated_from_ae, skip_special_tokens=True)
-                    print("Generated Texts:", text_from_ae)
-                counter_test += 1
-                progress_bar_test.update(1)
-            progress_bar_test.close()
-            test_loss /= len(test_loader)
-            writer.add_scalar('testing loss',
-                test_loss
-            )
-            print(f'Test Loss: {test_loss}')
-
+        print(f'Validation Loss: {val_loss}')
+        print(f'MAUVE: {mauve}')
+        print(f'Perplexity: {perplexity}')
+        print(f'Diversity: {diversity}')
+        print(f'Memorization: {memorization}', end='\n\n')
+        
     writer.flush()
     writer.close()

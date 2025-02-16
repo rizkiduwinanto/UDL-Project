@@ -141,3 +141,6 @@ class Dataset():
 
     def __getitem__(self, idx):
         return self.data.iloc[idx]
+
+    def get_sampled_test_data(self, n_samples=10):
+        return self.data['test'].shuffle().select(range(n_samples))['text']

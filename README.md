@@ -32,3 +32,11 @@ bash jobscript_flow.sh  # Run flow-based job
 
 ## Logs
 Log files are saved as `log.txt` and `log_flow.txt` for monitoring the execution.
+
+## Credits
+
+This repository builds upon and adapts code from the following publicly available sources:
+
+
+- [Latent Diffusion for Language (GitHub)](https://github.com/justinlovelace/latent-diffusion-for-language)
+- [Glow-PyTorch (GitHub)](https://github.com/rosinality/glow-pytorch)

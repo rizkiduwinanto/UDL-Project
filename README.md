@@ -23,13 +23,23 @@ snapshot_download(repo_id="rizkiduwinanto/lnf4lg")
 Alternatively, you can manually download the model from: [Hugging Face Model Page](https://huggingface.co/rizkiduwinanto/lnf4lg)
 
 ## Running the Project
-To execute the training or evaluation scripts, use the provided job scripts:
+To execute the training scripts, use the provided job scripts:
 
-```bash
+```bash 
 bash jobscript.sh  # Run training
 bash jobscript_flow.sh  # Run flow-based job
 ```
 
+```python
+python3 src/main_lm_finetune.py
+python3 src/main_flow_training.py
+```
+
+To execute evaluation and inference scripts, use the provided job scripts:
+```python
+python3 src/lm_inference.py
+python3 src/flow_inference.py
+```
 ## Logs
 Log files are saved as `log.txt` and `log_flow.txt` for monitoring the execution.
 

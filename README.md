@@ -42,7 +42,7 @@ python3 src/lm_inference.py
 python3 src/flow_inference.py
 ```
 ## Logs
-Log files are saved as `log.txt` and `log_flow.txt` for monitoring the execution.
+Log files are saved as `logs/log.txt` and `logs/og_flow.txt` for monitoring the execution.
 
 ## Credits
 
